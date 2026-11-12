@@ -9,6 +9,8 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
     outDir: 'dist',
+    // библиотека для XLSX весит ~400 КБ — для одностраничного инструмента это нормально
+    chunkSizeWarningLimit: 1000,
   },
   test: {
     environment: 'node',
