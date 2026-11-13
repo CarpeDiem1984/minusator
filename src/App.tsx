@@ -3,6 +3,7 @@ import { BrandSuggestions, type BrandMark } from './components/BrandSuggestions'
 import { CampaignsPanel } from './components/CampaignsPanel'
 import { ColumnMapper } from './components/ColumnMapper'
 import { FileDropZone } from './components/FileDropZone'
+import { HowItWorks } from './components/HowItWorks'
 import { MinusPanel } from './components/MinusPanel'
 import { QueriesTable } from './components/QueriesTable'
 import { SettingsPanel } from './components/SettingsPanel'
@@ -17,11 +18,11 @@ import {
   autoMapColumns,
   buildRows,
   ParseError,
-  readReport,
   type ColumnMapping,
   type RawTable,
 } from './lib/parser'
 import { DEFAULT_FORM, formToSettings, type SettingsForm } from './lib/settingsForm'
+import { readReportFile } from './lib/readFile'
 import { clearForm, loadForm, saveForm } from './lib/storage'
 import { computeSummary } from './lib/summary'
 import { DEFAULT_FILTERS, type Filters } from './lib/table'
@@ -45,9 +46,7 @@ export default function App() {
     setLoading(true)
     setError(null)
     try {
-      // даём браузеру нарисовать «Читаю файл…» до тяжёлой работы
-      await new Promise((r) => setTimeout(r, 30))
-      const table = readReport(await file.arrayBuffer(), file.name)
+      const table = await readReportFile(file)
       const auto = autoMapColumns(table.headers)
       setLoaded({ file, table, id: Date.now() })
       setMapping(auto)
@@ -136,14 +135,19 @@ export default function App() {
           </p>
         </header>
 
-        {!loaded && !loading && <FileDropZone onFile={handleFile} />}
+        {!loaded && !loading && (
+          <>
+            <FileDropZone onFile={handleFile} />
+            {error && <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+            <HowItWorks />
+          </>
+        )}
         {loading && (
           <p className="rounded-xl border border-slate-200 bg-white px-5 py-6 text-center text-slate-600">
+            <span className="mr-2 inline-block h-4 w-4 animate-spin rounded-full border-2 border-rose-200 border-t-rose-600 align-[-2px]" />
             Читаю файл… Большие отчёты читаются несколько секунд.
           </p>
         )}
-        {error && <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-
         {loaded && !loading && (
           <div className="space-y-6">
             <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-5 py-4">

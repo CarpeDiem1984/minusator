@@ -12,7 +12,8 @@ import {
   ruleExcludeKeys,
   stemKey,
 } from './minus'
-import { aggregateRows, autoMapColumns, buildRows, readReport } from './parser'
+import { aggregateRows, autoMapColumns, buildRows } from './parser'
+import { readReport } from './read'
 
 function run(file: string, s: Partial<Settings>): { rows: ClassifiedRow[]; settings: Settings } {
   const bytes = new Uint8Array(readFileSync(resolve(__dirname, '../../samples', file)))

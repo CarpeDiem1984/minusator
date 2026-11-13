@@ -10,7 +10,8 @@ import {
   type ClassifiedRow,
   type Settings,
 } from './classifier'
-import { aggregateRows, autoMapColumns, buildRows, readReport, type QueryRow } from './parser'
+import { aggregateRows, autoMapColumns, buildRows, type QueryRow } from './parser'
+import { readReport } from './read'
 
 const ALL: Available = { clicks: true, cost: true, conversions: true, brandMention: true }
 

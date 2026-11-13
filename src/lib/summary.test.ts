@@ -3,7 +3,8 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { detectCampaignType, type CampaignType } from './campaigns'
 import { classifyRows, DEFAULT_SETTINGS, type Settings } from './classifier'
-import { aggregateRows, autoMapColumns, buildRows, readReport } from './parser'
+import { aggregateRows, autoMapColumns, buildRows } from './parser'
+import { readReport } from './read'
 import { computeSummary, formatShare } from './summary'
 
 function run(file: string, s: Partial<Settings>) {

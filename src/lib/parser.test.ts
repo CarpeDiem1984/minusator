@@ -10,9 +10,9 @@ import {
   parseDelimitedText,
   parseNumber,
   ParseError,
-  readReport,
   aggregateRows,
 } from './parser'
+import { readReport } from './read'
 
 const samplePath = resolve(__dirname, '../../samples/search_queries_sample.csv')
 const sampleBytes = new Uint8Array(readFileSync(samplePath))
