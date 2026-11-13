@@ -238,8 +238,8 @@ describe('правила по отдельности', () => {
   it('слова в причине — как в запросе', () => {
     const r = make({})(row('скачать бесплатные курсы'), 'general')
     expect(r.reasons).toEqual([
-      { kind: 'free', severity: 'red', words: ['скачать', 'бесплатные'] },
-      { kind: 'education', severity: 'red', words: ['курсы'] },
+      { kind: 'free', severity: 'red', words: ['скачать', 'бесплатные'], phrases: ['скачать', 'бесплатно'] },
+      { kind: 'education', severity: 'red', words: ['курсы'], phrases: ['курсы'] },
     ])
   })
 })

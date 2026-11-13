@@ -1,13 +1,16 @@
 import { useDeferredValue, useMemo, useState } from 'react'
+import { BrandSuggestions, type BrandMark } from './components/BrandSuggestions'
 import { CampaignsPanel } from './components/CampaignsPanel'
 import { ColumnMapper } from './components/ColumnMapper'
 import { FileDropZone } from './components/FileDropZone'
+import { MinusPanel } from './components/MinusPanel'
 import { QueriesTable } from './components/QueriesTable'
 import { SettingsPanel } from './components/SettingsPanel'
-import { detectCampaignType, listCampaigns, type CampaignType } from './lib/campaigns'
+import { CAMPAIGN_TYPES, detectCampaignType, listCampaigns, type CampaignType } from './lib/campaigns'
 import { classifyRows, type Available } from './lib/classifier'
 import { formatFileSize } from './lib/file'
 import { formatNumber } from './lib/format'
+import { brandSuggestions } from './lib/minus'
 import {
   aggregateRows,
   autoMapColumns,
@@ -20,7 +23,7 @@ import {
 import { DEFAULT_FORM, formToSettings, type SettingsForm } from './lib/settingsForm'
 import { DEFAULT_FILTERS, type Filters } from './lib/table'
 
-type Loaded = { file: File; table: RawTable }
+type Loaded = { file: File; table: RawTable; id: number }
 
 export default function App() {
   const [loaded, setLoaded] = useState<Loaded | null>(null)
@@ -41,7 +44,7 @@ export default function App() {
       await new Promise((r) => setTimeout(r, 30))
       const table = readReport(await file.arrayBuffer(), file.name)
       const auto = autoMapColumns(table.headers)
-      setLoaded({ file, table })
+      setLoaded({ file, table, id: Date.now() })
       setMapping(auto)
       setShowMapper(auto.query === undefined)
       setTypeOverrides({})
@@ -88,6 +91,21 @@ export default function App() {
     () => classifyRows(rows, campaignTypes, settings, available),
     [rows, campaignTypes, settings, available],
   )
+
+  const typesPresent = useMemo(
+    () => CAMPAIGN_TYPES.filter((t) => Object.values(campaignTypes).includes(t)),
+    [campaignTypes],
+  )
+  const suggestions = useMemo(
+    () => (available.brandMention ? brandSuggestions(classified, settings) : []),
+    [available.brandMention, classified, settings],
+  )
+
+  /** Кнопки «конкурент / магазин / не бренд»: дописываем слово в нужное поле настроек. */
+  function markBrand(word: string, mark: BrandMark) {
+    const field = mark === 'competitor' ? 'otherCompetitors' : mark === 'store' ? 'extraStores' : 'notBrands'
+    setForm((f) => ({ ...f, [field]: f[field].trim() ? `${f[field].trim()}, ${word}` : word }))
+  }
 
   const noQueryColumn = loaded !== null && mapping.query === undefined
   const needsBrand =
@@ -179,6 +197,8 @@ export default function App() {
                   </p>
                 )}
                 <QueriesTable rows={classified} mapping={mapping} filters={filters} onFiltersChange={setFilters} />
+                <BrandSuggestions suggestions={suggestions} onMark={markBrand} />
+                <MinusPanel key={loaded.id} rows={classified} settings={settings} types={typesPresent} />
               </>
             )}
           </div>

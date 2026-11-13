@@ -18,7 +18,7 @@ const row = (query: string, extra: Partial<ClassifiedRow>): ClassifiedRow => ({
 })
 
 const rows = [
-  row('диван бесплатно', { status: 'red', cost: 50, reasons: [{ kind: 'free', severity: 'red', words: ['бесплатно'] }] }),
+  row('диван бесплатно', { status: 'red', cost: 50, reasons: [{ kind: 'free', severity: 'red', words: ['бесплатно'], phrases: ['бесплатно'] }] }),
   row('купить диван', { cost: 300, campaignType: 'category' }),
   row('Диван ёлка', { status: 'yellow', cost: 100 }),
 ]

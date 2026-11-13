@@ -7,7 +7,14 @@ type Props = {
   onChange: (form: SettingsForm) => void
 }
 
-type ListField = 'brandWords' | 'allowedCompetitors' | 'otherCompetitors' | 'extraStores' | 'whitelist' | 'ownCities'
+type ListField =
+  | 'brandWords'
+  | 'allowedCompetitors'
+  | 'otherCompetitors'
+  | 'extraStores'
+  | 'whitelist'
+  | 'ownCities'
+  | 'notBrands'
 
 const LIST_FIELDS: { key: ListField; label: string; hint: string; placeholder: string }[] = [
   {
@@ -31,7 +38,7 @@ const LIST_FIELDS: { key: ListField; label: string; hint: string; placeholder: s
   {
     key: 'extraStores',
     label: 'Ещё магазины и аптеки',
-    hint: 'Если каких-то нет в встроенном словаре магазинов.',
+    hint: 'Если каких-то нет во встроенном словаре магазинов.',
     placeholder: 'аптека от склада',
   },
   {
@@ -45,6 +52,12 @@ const LIST_FIELDS: { key: ListField; label: string; hint: string; placeholder: s
     label: 'Свой город',
     hint: 'Запросы с другими городами станут мусором. Пусто — гео не проверяется.',
     placeholder: 'москва',
+  },
+  {
+    key: 'notBrands',
+    label: 'Не бренды',
+    hint: 'Слова, отмеченные «не бренд» в блоке «Похоже на бренды». Их больше не предлагаем.',
+    placeholder: '',
   },
 ]
 

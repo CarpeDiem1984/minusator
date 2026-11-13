@@ -9,6 +9,7 @@ export type SettingsForm = {
   extraStores: string
   whitelist: string
   ownCities: string
+  notBrands: string
   categories: Record<DictCategory, boolean>
   minClicks: number
   minCost: number
@@ -21,6 +22,7 @@ export const DEFAULT_FORM: SettingsForm = {
   extraStores: '',
   whitelist: '',
   ownCities: '',
+  notBrands: '',
   categories: { ...DEFAULT_SETTINGS.categories },
   minClicks: DEFAULT_SETTINGS.minClicks,
   minCost: DEFAULT_SETTINGS.minCost,
@@ -34,6 +36,7 @@ export function formToSettings(f: SettingsForm): Settings {
     extraStores: parseList(f.extraStores),
     whitelist: parseList(f.whitelist),
     ownCities: parseList(f.ownCities),
+    notBrands: parseList(f.notBrands),
     categories: f.categories,
     minClicks: Number.isFinite(f.minClicks) ? f.minClicks : DEFAULT_SETTINGS.minClicks,
     minCost: Number.isFinite(f.minCost) ? f.minCost : DEFAULT_SETTINGS.minCost,
