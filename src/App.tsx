@@ -1,10 +1,24 @@
-import { useMemo, useState } from 'react'
+import { useDeferredValue, useMemo, useState } from 'react'
+import { CampaignsPanel } from './components/CampaignsPanel'
 import { ColumnMapper } from './components/ColumnMapper'
 import { FileDropZone } from './components/FileDropZone'
 import { QueriesTable } from './components/QueriesTable'
+import { SettingsPanel } from './components/SettingsPanel'
+import { detectCampaignType, listCampaigns, type CampaignType } from './lib/campaigns'
+import { classifyRows, type Available } from './lib/classifier'
 import { formatFileSize } from './lib/file'
 import { formatNumber } from './lib/format'
-import { autoMapColumns, buildRows, ParseError, readReport, type ColumnMapping, type RawTable } from './lib/parser'
+import {
+  aggregateRows,
+  autoMapColumns,
+  buildRows,
+  ParseError,
+  readReport,
+  type ColumnMapping,
+  type RawTable,
+} from './lib/parser'
+import { DEFAULT_FORM, formToSettings, type SettingsForm } from './lib/settingsForm'
+import { DEFAULT_FILTERS, type Filters } from './lib/table'
 
 type Loaded = { file: File; table: RawTable }
 
@@ -14,16 +28,24 @@ export default function App() {
   const [showMapper, setShowMapper] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** Виды кампаний, которые пользователь поменял вручную (остальные — по названию). */
+  const [typeOverrides, setTypeOverrides] = useState<Record<string, CampaignType>>({})
+  const [form, setForm] = useState<SettingsForm>(DEFAULT_FORM)
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
 
   async function handleFile(file: File) {
     setLoading(true)
     setError(null)
     try {
+      // даём браузеру нарисовать «Читаю файл…» до тяжёлой работы
+      await new Promise((r) => setTimeout(r, 30))
       const table = readReport(await file.arrayBuffer(), file.name)
       const auto = autoMapColumns(table.headers)
       setLoaded({ file, table })
       setMapping(auto)
       setShowMapper(auto.query === undefined)
+      setTypeOverrides({})
+      setFilters(DEFAULT_FILTERS)
     } catch (e) {
       setLoaded(null)
       setError(e instanceof ParseError ? e.message : 'Не получилось прочитать файл. Проверьте, что это отчёт в CSV или XLSX.')
@@ -38,14 +60,42 @@ export default function App() {
     setMapping({})
     setError(null)
     setShowMapper(false)
+    setTypeOverrides({})
+    setFilters(DEFAULT_FILTERS)
   }
 
-  const rows = useMemo(() => (loaded ? buildRows(loaded.table, mapping) : []), [loaded, mapping])
+  const rows = useMemo(() => (loaded ? aggregateRows(buildRows(loaded.table, mapping)) : []), [loaded, mapping])
+  const campaigns = useMemo(() => listCampaigns(rows), [rows])
+  const campaignTypes = useMemo(() => {
+    const t: Record<string, CampaignType> = {}
+    for (const c of campaigns) t[c.name] = typeOverrides[c.name] ?? detectCampaignType(c.name)
+    return t
+  }, [campaigns, typeOverrides])
+  const available: Available = useMemo(
+    () => ({
+      clicks: mapping.clicks !== undefined,
+      cost: mapping.cost !== undefined,
+      conversions: mapping.conversions !== undefined,
+      brandMention: mapping.brandMention !== undefined,
+    }),
+    [mapping],
+  )
+
+  // пересчёт на 40 000+ запросов занимает доли секунды — не тормозим ввод в поля настроек
+  const deferredForm = useDeferredValue(form)
+  const settings = useMemo(() => formToSettings(deferredForm), [deferredForm])
+  const classified = useMemo(
+    () => classifyRows(rows, campaignTypes, settings, available),
+    [rows, campaignTypes, settings, available],
+  )
+
   const noQueryColumn = loaded !== null && mapping.query === undefined
+  const needsBrand =
+    settings.brandWords.length === 0 && Object.values(campaignTypes).some((t) => t !== 'general')
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10 sm:py-16">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:py-16">
         <header className="mb-10">
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
             Минус<span className="text-rose-600">атор</span>
@@ -56,11 +106,15 @@ export default function App() {
           </p>
         </header>
 
-        {!loaded && <FileDropZone onFile={handleFile} />}
-        {loading && <p className="mt-4 text-sm text-slate-500">Читаю файл…</p>}
+        {!loaded && !loading && <FileDropZone onFile={handleFile} />}
+        {loading && (
+          <p className="rounded-xl border border-slate-200 bg-white px-5 py-6 text-center text-slate-600">
+            Читаю файл… Большие отчёты читаются несколько секунд.
+          </p>
+        )}
         {error && <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
-        {loaded && (
+        {loaded && !loading && (
           <div className="space-y-6">
             <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-5 py-4">
               <div className="min-w-0">
@@ -104,14 +158,29 @@ export default function App() {
               )}
             </section>
 
-            {!noQueryColumn &&
-              (rows.length > 0 ? (
-                <QueriesTable rows={rows} mapping={mapping} />
-              ) : (
-                <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  В выбранной колонке нет ни одного запроса. Проверьте, что колонка выбрана правильно.
-                </p>
-              ))}
+            {!noQueryColumn && rows.length === 0 && (
+              <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                В выбранной колонке нет ни одного запроса. Проверьте, что колонка выбрана правильно.
+              </p>
+            )}
+
+            {!noQueryColumn && rows.length > 0 && (
+              <>
+                <CampaignsPanel
+                  campaigns={campaigns}
+                  types={campaignTypes}
+                  onChange={(name, type) => setTypeOverrides((o) => ({ ...o, [name]: type }))}
+                />
+                <SettingsPanel form={form} onChange={setForm} />
+                {needsBrand && (
+                  <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    Укажите слова бренда клиента в настройках — без них не работают правила брендовой, категорийной и
+                    конкурентной кампаний.
+                  </p>
+                )}
+                <QueriesTable rows={classified} mapping={mapping} filters={filters} onFiltersChange={setFilters} />
+              </>
+            )}
           </div>
         )}
       </main>

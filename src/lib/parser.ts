@@ -3,9 +3,26 @@ import * as XLSX from 'xlsx'
 import { getExtension } from './file'
 
 /** Поля отчёта, которые нужны Минусатору. Обязательно только `query`. */
-export type Field = 'query' | 'campaign' | 'group' | 'impressions' | 'clicks' | 'cost' | 'conversions'
+export type Field =
+  | 'query'
+  | 'campaign'
+  | 'group'
+  | 'impressions'
+  | 'clicks'
+  | 'cost'
+  | 'conversions'
+  | 'brandMention'
 
-export const FIELDS: Field[] = ['query', 'campaign', 'group', 'impressions', 'clicks', 'cost', 'conversions']
+export const FIELDS: Field[] = [
+  'query',
+  'campaign',
+  'group',
+  'impressions',
+  'clicks',
+  'cost',
+  'conversions',
+  'brandMention',
+]
 
 export const FIELD_LABELS: Record<Field, string> = {
   query: 'Поисковый запрос',
@@ -15,6 +32,7 @@ export const FIELD_LABELS: Record<Field, string> = {
   clicks: 'Клики',
   cost: 'Расход',
   conversions: 'Конверсии',
+  brandMention: 'Упоминания брендов',
 }
 
 export const METRIC_FIELDS = ['impressions', 'clicks', 'cost', 'conversions'] as const
@@ -45,6 +63,8 @@ export type QueryRow = {
   clicks: number
   cost: number
   conversions: number
+  /** Значение колонки Директа «Упоминания брендов в запросах» ('' если колонки нет). */
+  brandMention: string
 }
 
 export class ParseError extends Error {}
@@ -217,6 +237,7 @@ const RULES: Record<Field, Rule> = {
     exclude: ['%', 'стоимост', 'цена', 'доля', 'процент'],
     exact: ['конверсии'],
   },
+  brandMention: { include: ['упоминан'], exact: ['упоминания брендов в запросах'] },
 }
 
 function normalizeHeader(h: string): string {
@@ -302,7 +323,37 @@ export function buildRows(table: RawTable, mapping: ColumnMapping): QueryRow[] {
       clicks: num(row, 'clicks'),
       cost: num(row, 'cost'),
       conversions: num(row, 'conversions'),
+      brandMention: text(row, 'brandMention'),
     })
   }
   return result
+}
+
+/**
+ * Склеивает одинаковые запросы внутри одной кампании (они бывают в разных группах):
+ * метрики складываются, группы перечисляются через запятую.
+ * Сравнение запросов без учёта регистра и разницы ё/е. Порядок — по первому появлению.
+ */
+export function aggregateRows(rows: QueryRow[]): QueryRow[] {
+  const byKey = new Map<string, { row: QueryRow; groups: Set<string> }>()
+  for (const r of rows) {
+    const key = `${r.campaign}\u0000${r.query.toLowerCase().replace(/ё/g, 'е')}`
+    const found = byKey.get(key)
+    if (!found) {
+      byKey.set(key, { row: { ...r }, groups: new Set(r.group ? [r.group] : []) })
+      continue
+    }
+    const a = found.row
+    a.impressions += r.impressions
+    a.clicks += r.clicks
+    a.cost += r.cost
+    a.conversions += r.conversions
+    if (!a.brandMention) a.brandMention = r.brandMention
+    if (r.group) found.groups.add(r.group)
+  }
+  return [...byKey.values()].map(({ row, groups }) => ({
+    ...row,
+    cost: Math.round(row.cost * 100) / 100,
+    group: [...groups].join(', '),
+  }))
 }

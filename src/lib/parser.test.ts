@@ -11,6 +11,7 @@ import {
   parseNumber,
   ParseError,
   readReport,
+  aggregateRows,
 } from './parser'
 
 const samplePath = resolve(__dirname, '../../samples/search_queries_sample.csv')
@@ -64,6 +65,7 @@ describe('образец samples/search_queries_sample.csv', () => {
       clicks: 64,
       cost: 3840.5,
       conversions: 6,
+      brandMention: '',
     })
     const totalCost = rows.reduce((s, r) => s + r.cost, 0)
     expect(totalCost).toBeCloseTo(21_875.9, 2)
@@ -262,5 +264,76 @@ describe('XLSX', () => {
 
   it('битый Excel — понятная ошибка', () => {
     expect(() => readReport(new Uint8Array([0x50, 0x4b, 1, 2, 3]), 'broken.xlsx')).toThrow(ParseError)
+  })
+})
+
+describe('колонка «Упоминания брендов» (как в реальном отчёте Директа)', () => {
+  it('находится и не мешает колонке запросов', () => {
+    const headers = [
+      'Тип условия показа',
+      'Поисковый запрос',
+      'Категория запроса',
+      'Упоминания брендов в запросах',
+      'Название кампании',
+      '№ Кампании',
+      'Название группы',
+      '№ Группы',
+      'Ключевая фраза',
+      'Тип соответствия',
+      'Расход, ₽',
+      'Показы',
+      'Клики',
+      'Конверсии',
+      'CR, %',
+      'CPA, ₽',
+    ]
+    expect(autoMapColumns(headers)).toEqual({
+      query: 1,
+      brandMention: 3,
+      campaign: 4,
+      group: 6,
+      cost: 10,
+      impressions: 11,
+      clicks: 12,
+      conversions: 13,
+    })
+  })
+
+  it('строка «Итого» сразу под заголовками и пустые запросы пропускаются', () => {
+    const t = parseDelimitedText(
+      [
+        'Клиент: Тест',
+        'Отчет: Поисковые запросы',
+        '',
+        'Тип условия показа;Поисковый запрос;Упоминания брендов в запросах;Название кампании;Расход, ₽',
+        'Итого;;;;100',
+        'Фраза;лосьон;Запросы без упоминания брендов;demo_category;60',
+        'Автотаргетинг;;Запросы без упоминания брендов;demo_category;40',
+      ].join('\n'),
+    )
+    const rows = buildRows(t, autoMapColumns(t.headers))
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ query: 'лосьон', brandMention: 'Запросы без упоминания брендов', cost: 60 })
+  })
+})
+
+describe('aggregateRows', () => {
+  const base = { impressions: 0, clicks: 0, cost: 0, conversions: 0, brandMention: '' }
+  it('склеивает один запрос из разных групп одной кампании', () => {
+    const rows = aggregateRows([
+      { ...base, query: 'Лосьон для ногтей', campaign: 'A', group: 'g1', clicks: 2, cost: 10.1 },
+      { ...base, query: 'кресло', campaign: 'A', group: 'g1', clicks: 1 },
+      { ...base, query: 'лосьон для ногтей', campaign: 'A', group: 'g2', clicks: 3, cost: 20.2, conversions: 1 },
+      { ...base, query: 'лосьон для ногтей', campaign: 'A', group: 'g1', clicks: 1, cost: 0 },
+    ])
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatchObject({ query: 'Лосьон для ногтей', group: 'g1, g2', clicks: 6, cost: 30.3, conversions: 1 })
+  })
+  it('в разных кампаниях — разные строки', () => {
+    const rows = aggregateRows([
+      { ...base, query: 'лосьон', campaign: 'A', group: '' },
+      { ...base, query: 'лосьон', campaign: 'B', group: '' },
+    ])
+    expect(rows).toHaveLength(2)
   })
 })
