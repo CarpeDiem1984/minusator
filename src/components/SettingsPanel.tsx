@@ -5,6 +5,7 @@ import type { SettingsForm } from '../lib/settingsForm'
 type Props = {
   form: SettingsForm
   onChange: (form: SettingsForm) => void
+  onReset: () => void
 }
 
 type ListField =
@@ -61,8 +62,9 @@ const LIST_FIELDS: { key: ListField; label: string; hint: string; placeholder: s
   },
 ]
 
-export function SettingsPanel({ form, onChange }: Props) {
-  const [open, setOpen] = useState(true)
+export function SettingsPanel({ form, onChange, onReset }: Props) {
+  // если настройки уже заполнены в прошлый раз — показываем свёрнутыми, чтобы не мешали
+  const [open, setOpen] = useState(() => form.brandWords.trim() === '')
   const set = <K extends keyof SettingsForm>(key: K, value: SettingsForm[K]) => onChange({ ...form, [key]: value })
 
   return (
@@ -129,6 +131,19 @@ export function SettingsPanel({ form, onChange }: Props) {
               />
               ₽
             </label>
+          </div>
+
+          <div className="flex flex-col gap-2 border-t border-slate-100 pt-4 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+            <span>Настройки запоминаются в этом браузере и подставятся при следующем визите.</span>
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Очистить все настройки клиента?')) onReset()
+              }}
+              className="shrink-0 self-start rounded-lg border border-slate-300 px-3 py-1.5 text-slate-600 hover:bg-slate-50"
+            >
+              Очистить настройки
+            </button>
           </div>
         </div>
       )}

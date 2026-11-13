@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { BrandSuggestions, type BrandMark } from './components/BrandSuggestions'
 import { CampaignsPanel } from './components/CampaignsPanel'
 import { ColumnMapper } from './components/ColumnMapper'
@@ -6,6 +6,7 @@ import { FileDropZone } from './components/FileDropZone'
 import { MinusPanel } from './components/MinusPanel'
 import { QueriesTable } from './components/QueriesTable'
 import { SettingsPanel } from './components/SettingsPanel'
+import { SummaryPanel } from './components/SummaryPanel'
 import { CAMPAIGN_TYPES, detectCampaignType, listCampaigns, type CampaignType } from './lib/campaigns'
 import { classifyRows, type Available } from './lib/classifier'
 import { formatFileSize } from './lib/file'
@@ -21,6 +22,8 @@ import {
   type RawTable,
 } from './lib/parser'
 import { DEFAULT_FORM, formToSettings, type SettingsForm } from './lib/settingsForm'
+import { clearForm, loadForm, saveForm } from './lib/storage'
+import { computeSummary } from './lib/summary'
 import { DEFAULT_FILTERS, type Filters } from './lib/table'
 
 type Loaded = { file: File; table: RawTable; id: number }
@@ -33,7 +36,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   /** Виды кампаний, которые пользователь поменял вручную (остальные — по названию). */
   const [typeOverrides, setTypeOverrides] = useState<Record<string, CampaignType>>({})
-  const [form, setForm] = useState<SettingsForm>(DEFAULT_FORM)
+  // настройки клиента подставляются из прошлого визита и сохраняются при каждом изменении
+  const [form, setForm] = useState<SettingsForm>(() => loadForm())
+  useEffect(() => saveForm(form), [form])
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
 
   async function handleFile(file: File) {
@@ -91,6 +96,13 @@ export default function App() {
     () => classifyRows(rows, campaignTypes, settings, available),
     [rows, campaignTypes, settings, available],
   )
+
+  const summary = useMemo(() => computeSummary(classified), [classified])
+
+  function resetSettings() {
+    clearForm()
+    setForm(DEFAULT_FORM)
+  }
 
   const typesPresent = useMemo(
     () => CAMPAIGN_TYPES.filter((t) => Object.values(campaignTypes).includes(t)),
@@ -189,13 +201,14 @@ export default function App() {
                   types={campaignTypes}
                   onChange={(name, type) => setTypeOverrides((o) => ({ ...o, [name]: type }))}
                 />
-                <SettingsPanel form={form} onChange={setForm} />
+                <SettingsPanel form={form} onChange={setForm} onReset={resetSettings} />
                 {needsBrand && (
                   <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
                     Укажите слова бренда клиента в настройках — без них не работают правила брендовой, категорийной и
                     конкурентной кампаний.
                   </p>
                 )}
+                <SummaryPanel summary={summary} hasCost={available.cost} />
                 <QueriesTable rows={classified} mapping={mapping} filters={filters} onFiltersChange={setFilters} />
                 <BrandSuggestions suggestions={suggestions} onMark={markBrand} />
                 <MinusPanel key={loaded.id} rows={classified} settings={settings} types={typesPresent} />
